@@ -1,17 +1,13 @@
 from robodk.robolink import *    # RoboDK API
 from robodk import *      # Robot toolbox
-from random import randint
-import random
 import cv2
-import imutils
-from matplotlib import pyplot as plt
-import argparse
-from scipy.spatial import distance as dist
-from collections import OrderedDict
 import numpy as np
 
 # Any interaction with RoboDK must be done through RDK:
 RDK = Robolink()
+PATH='.'
+CROP_START = 367
+PIXELPERMM = 40/23
 
 # Select a robot (popup is displayed if more than one robot is available)
 # gather robot, tool and reference frames from the station
@@ -21,17 +17,10 @@ table               = RDK.Item('', ITEM_TYPE_FRAME)
 if not robot.Valid():
     raise Exception('No robot selected or available')
 
-
-# get the current position of the TCP with respect to the reference frame:
-# (4x4 matrix representing position and orientation)
 target_ref = robot.Pose()
 pos_ref = target_ref.Pos()
 ref_image = [338, 88]
 ref_real = [140, 400]
-CROP_START = 367
-PIXELPERMM = 40/23
-print(Pose_2_TxyzRxyz(target_ref))
-# move the robot to the first point:
 
 # It is important to provide the reference frame and the tool frames when generating programs offline
 robot.setPoseFrame(robot.PoseFrame())
@@ -57,23 +46,8 @@ def TCP_Off(toolitem, itemleave=0):
     #toolitem.RDK().RunMessage('Set air valve off')
     toolitem.RDK().RunProgram('TCP_Off()')
 
-
-
-
-#Calc Homography matrix from previously extracted red locations
-# to calculate the transformation matrix
-input_pts = np.float32([[160, 88],[840, 91],[158, 546],[838,550]])
-output_pts = np.float32([[750,370],[750,-370],[250,370],[250,-370]])
-# Compute the perspective transform M
-H = np.float32(cv2.getPerspectiveTransform(input_pts, output_pts))
-print('Homography Matrix: \n', H)
-
-
-
 def zoom(img, zoom_factor=2):
     return cv2.resize(img, None, fx=zoom_factor, fy=zoom_factor)
-
-
 
 def detect_checkers(path):
     # load the image and resize it to a smaller factor so that
@@ -132,10 +106,10 @@ def WaitPartCamera():
     """Simulate camera detection"""
     if RDK.RunMode() == RUNMODE_SIMULATE:
         #Use real image processing and brick detection
-        print("Saving camera snapshot to file:" + '/home/kzoltan/Documents/EGYETEM/UR_project/Chess/Image-Camera-Simulation.png')            
-        RDK.Cam2D_Snapshot('/home/kzoltan/Documents/EGYETEM/UR_project/Chess/tmp.png')
+        print("Saving camera snapshot to file:" + f'{PATH}/tmp.png')            
+        RDK.Cam2D_Snapshot(f'{PATH}/tmp.png')
         # Implement your image processing here:
-        return detect_checkers('/home/kzoltan/Documents/EGYETEM/UR_project/Chess/tmp.png')
+        return detect_checkers(f'{PATH}/tmp.png')
     else:
         RDK.RunProgram('WaitPartCamera')
     return 0,0,0
@@ -143,19 +117,12 @@ def WaitPartCamera():
 
 
 def calculate_real_position(x,y):
-
     gray_img_x = x/3+CROP_START
     gray_img_y = y/3
-    #print("gray_img_x",gray_img_x)
-    #print("gray_img_y", gray_img_y)
     dif_x = (gray_img_x - ref_image[0])*PIXELPERMM
     dif_y = (gray_img_y - ref_image[1])*PIXELPERMM
-    #print("gray_img_x - ref_image[0]",gray_img_x - ref_image[0])
-    #print("gray_img_y - ref_image[1]", gray_img_y - ref_image[1])
     real_x = dif_x+ref_real[0]
     real_y = dif_y+ref_real[1]
-    #print("real_x ",real_x)
-    #print("real_y ",real_y)
     return real_x, real_y
 
 def pickup_checker(target,lego_brick_list, colors):
@@ -206,13 +173,7 @@ def pickup_checker(target,lego_brick_list, colors):
                 idx_black = idx_black + 80
 
 
-            print(x,y)
-
-
 lego_brick_list, colors = WaitPartCamera()
 target = RDK.Item('Target')  
 pickup_checker(target, lego_brick_list, colors)
-
-# move back to the center, then home:
-
 print('Done')
